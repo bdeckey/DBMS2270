@@ -1,0 +1,71 @@
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv")
+
+
+del df['AAPL.Open']
+del df['direction']
+del df['up']
+del df['AAPL.Low']
+del df['AAPL.Close']
+del df['AAPL.Volume']
+del df['AAPL.Adjusted']
+del df['dn']
+del df['mavg']
+del df['Date']
+
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    if value > array[idx]:
+        return array[idx], array[idx+1]
+    else:
+        return array[idx]
+
+data = df.reset_index().values
+xcol = data[:,0]
+ycol = data[:,1]
+
+sample = np.linspace(0, 505, 100)
+
+yinterp = np.interp(sample, xcol, ycol)
+
+# plt.plot(sample, yinterp, '-x')
+# plt.plot(xcol, ycol, '-x')
+
+maxdev = 0
+
+for i in range(10):
+    start, stop = find_nearest(sample, i)
+    print(start, stop, i)
+
+
+# plt.show()
+
+    # fig = go.Figure()
+# fig.add_trace(go.Scatter(
+#                 x=df.Date,
+#                 y=df['AAPL.High'],
+#                 name="AAPL High",
+#                 line_color='deepskyblue',
+#                 opacity=0.8))
+#
+# fig.add_trace(go.Scatter(
+#                 x=df.Date,
+#                 y=df['AAPL.Low'],
+#                 name="AAPL Low",
+#                 line_color='dimgray',
+#                 opacity=0.8))
+
+# # Use date string to set xaxis range
+# fig.update_layout(xaxis_range=['2016-07-01','2016-12-31'],
+#                   title_text="Manually Set Date Range")
+
+
+
+
+
+# fig.show()
