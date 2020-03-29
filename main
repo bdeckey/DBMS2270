@@ -2,6 +2,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.spatial import distance
 
 df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv")
 
@@ -17,55 +18,113 @@ del df['dn']
 del df['mavg']
 del df['Date']
 
-def find_nearest(array, value):
+def find_nearest(array, value, array2):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
+    if idx == 0:
+        return array[idx], array[idx + 1], array2[idx], array2[idx + 1]
+    if idx == len(array)-1:
+        return array[idx-1], array[idx], array2[idx-1], array2[idx]
     if value > array[idx]:
-        return array[idx], array[idx+1]
+        return array[idx], array[idx+1], array2[idx], array2[idx + 1]
     else:
-        return array[idx]
+        return array[idx-1], array[idx], array[idx-1], array[idx]
+
+def findMax(x, y, sampleX, sampleY):
+    maxdev = []
+    curMax = [0, 0]
+    sx1, sx2 = 0, 0
+    for i in range(len(x)):
+        if i > 0 and i > sx1 and i < sx2:
+            line = m * i + b
+            dist = np.abs(line - y[i])
+            if dist > curMax[0]:
+                curMax = [dist, i]
+            maxdev += [dist]
+        else:
+            sx1, sx2, sy1, sy2 = find_nearest(sampleX, i, sampleY)
+            m = (sy1 - sy2) / (sx1 - sx2)
+            b = (sx1 * sy2 - sx2 * sy1) / (sx1 - sx2)
+            line = m*i + b
+            dist = np.abs(line - y[i])
+            if dist > curMax[0]:
+                curMax = [dist, i]
+            maxdev += [dist]
+    return curMax
+
+def curveFitting(x, y, errorTol, numseg):
+    length = len(x)
+    print(x[0], x[len(x)-1])
+    sampleX = np.linspace(x[0], x[len(x)-1], numseg)
+    sampleY = np.interp(sampleX, x, y)
+    maxDev = findMax(x,y, sampleX, sampleY)
+
+    if maxDev[1]+1 == length:
+        return sampleX, sampleY
+
+    if maxDev[0] > errorTol and len(sampleX) > 2:
+        segi = np.ceil(numseg * (maxDev[1]/length))
+        segii = numseg - segi
+
+        if segii == 0 or segii == 1:
+            segii = 2
+        if segi == 0 or segi == 1:
+            segi = 2
+
+
+        xi = x[:maxDev[1]]
+        yi = y[:maxDev[1]]
+        sxi = np.linspace(x[0], maxDev[1]-1, segi)
+        syi = np.interp(sxi, xi, yi)
+
+        xii = x[maxDev[1]+1:]
+        yii = y[maxDev[1]+1:]
+        sxii = np.linspace(maxDev[1]+1, x[len(x)-1], segii)
+        syii = np.interp(sxii, xii, yii)
+
+        curPoint = (maxDev[1], y[maxDev[1]])
+        pointi = (sxi[-1], syi[-1])
+        pointii = (sxii[0], syii[0])
+
+        dist1 = distance.euclidean(curPoint,  pointi)
+        dist2 = distance.euclidean(curPoint, pointii)
+
+        if dist1 >= dist2:
+            xii = np.insert(xii, 0, maxDev[1])
+            yii = np.insert(yii, 0, y[maxDev[1]])
+        else:
+            xi = np.append(xi, [maxDev[1]])
+            yi = np.append(yi, [y[maxDev[1]]])
+
+
+        finalxi, finalyi = curveFitting(xi, yi, errorTol, segi)
+        finalxii, finalyii = curveFitting(xii, yii, errorTol, segii)
+
+        finalx = np.append(finalxi, finalxii)
+        finaly = np.append(finalyi, finalyii)
+        return finalx, finaly
+    else:
+        return sampleX, sampleY
+
+
+
+
 
 data = df.reset_index().values
-xcol = data[:,0]
-ycol = data[:,1]
+xcol = data[:50,0]
+ycol = data[:50,1]
 
-sample = np.linspace(0, 505, 100)
+errorTol = 3
 
-yinterp = np.interp(sample, xcol, ycol)
+answer = curveFitting(xcol, ycol, errorTol, 10)
+print(findMax(xcol,ycol,answer[0],answer[1]))
+# print(answer[0])
+# print(len(answer[0]), len(answer[1]))
 
-# plt.plot(sample, yinterp, '-x')
-# plt.plot(xcol, ycol, '-x')
-
-maxdev = 0
-
-for i in range(10):
-    start, stop = find_nearest(sample, i)
-    print(start, stop, i)
-
-
-# plt.show()
-
-    # fig = go.Figure()
-# fig.add_trace(go.Scatter(
-#                 x=df.Date,
-#                 y=df['AAPL.High'],
-#                 name="AAPL High",
-#                 line_color='deepskyblue',
-#                 opacity=0.8))
+# print(len(answer[0]), len(answer[1]))
+# print(answer[0])
 #
-# fig.add_trace(go.Scatter(
-#                 x=df.Date,
-#                 y=df['AAPL.Low'],
-#                 name="AAPL Low",
-#                 line_color='dimgray',
-#                 opacity=0.8))
+plt.plot(answer[0], answer[1])
+plt.plot(xcol, ycol)
+plt.show()
 
-# # Use date string to set xaxis range
-# fig.update_layout(xaxis_range=['2016-07-01','2016-12-31'],
-#                   title_text="Manually Set Date Range")
-
-
-
-
-
-# fig.show()
