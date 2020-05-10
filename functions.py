@@ -1,3 +1,5 @@
+from scipy.spatial import distance
+from pyts.approximation import PiecewiseAggregateApproximation
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -7,22 +9,26 @@ from sklearn.cluster import KMeans
 import csv
 import pywt
 import math
-from pyts.approximation import PiecewiseAggregateApproximation
 
+def getStockData():
+    df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv")
 
-df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv")
+    del df['AAPL.Open']
+    del df['direction']
+    del df['up']
+    del df['AAPL.Low']
+    del df['AAPL.Close']
+    del df['AAPL.Volume']
+    del df['AAPL.Adjusted']
+    del df['dn']
+    del df['mavg']
+    del df['Date']
 
+    data = df.reset_index().values
+    xcol = data[:, 0]
+    ycol = data[:, 1]
 
-del df['AAPL.Open']
-del df['direction']
-del df['up']
-del df['AAPL.Low']
-del df['AAPL.Close']
-del df['AAPL.Volume']
-del df['AAPL.Adjusted']
-del df['dn']
-del df['mavg']
-del df['Date']
+    return xcol, ycol
 
 def find_nearest(array, value, array2):
     array = np.asarray(array)
@@ -255,99 +261,146 @@ def DWT(array, M):
     print('final', answer)
     return answer
 
-x = []
-y1 = []
-y2 = []
-micro = []
+def sliding_chunker(data, window_len, slide_len):
+    """
+    Split a list into a series of sub-lists, each sub-list window_len long,
+    sliding along by slide_len each time. If the list doesn't have enough
+    elements for the final sub-list to be window_len long, the remaining data
+    will be dropped.
+    e.g. sliding_chunker(range(6), window_len=3, slide_len=2)
+    gives [ [0, 1, 2], [2, 3, 4] ]
+    """
+    chunks = []
+    for pos in range(0, len(data), slide_len):
+        chunk = np.copy(data[pos:pos+window_len])
+        if len(chunk) != window_len:
+            continue
+        chunks.append(chunk)
 
-with open('ECGTime.csv', newline='') as csvfile:
-    reader = csv.reader(csvfile, delimiter=',')
-    for row in reader:
-        x += [int(row[0])]
-        y1 += [float(row[1])]
-        y2 += [float(row[2])]
-        micro += [[int(row[0]), float(row[1])]]
+    return chunks
 
+def plot_waves(waves, step):
+    """
+    Plot a set of 9 waves from the given set, starting from the first one
+    and increasing in index by 'step' for each subsequent graph
+    """
+    plt.figure()
+    n_graph_rows = 3
+    n_graph_cols = 3
+    graph_n = 1
+    wave_n = 0
+    for _ in range(n_graph_rows):
+        for _ in range(n_graph_cols):
+            axes = plt.subplot(n_graph_rows, n_graph_cols, graph_n)
+            axes.set_ylim([-100, 150])
+            plt.plot(waves[wave_n])
+            graph_n += 1
+            wave_n += step
+    # fix subplot sizes so that everything fits
+    plt.tight_layout()
+    plt.show()
 
+def reconstruct(data, window, clusterer):
+    """
+    Reconstruct the given data using the cluster centers from the given
+    clusterer.
+    """
+    window_len = len(window)
+    slide_len = int(window_len/2)
+    segments = sliding_chunker(data, window_len, slide_len)
+    reconstructed_data = np.zeros(len(data))
+    for segment_n, segment in enumerate(segments):
+        # window the segment so that we can find it in our clusters which were
+        # formed from windowed data
+        segment *= window
+        nearest_match_idx = clusterer.predict(segment.reshape(1, -1))[0]
+        nearest_match = np.copy(clusterer.cluster_centers_[nearest_match_idx])
 
-data = df.reset_index().values
-xcol = data[:,0]
-ycol = data[:,1]
-#
-# errorTol = 0.2
-#
-# test = [[0,7],[1,5],[2,5],[3,3],[4,3],[5,3],[6,4],[7,6]]
-# test1 = [7,5,5,3,3,3,4,6]
-#
-# DWT(test1, 3)
+        pos = segment_n * slide_len
+        reconstructed_data[pos:pos+window_len] += nearest_match
 
-# a = [35, -3, 16, 10, 8, -8, 0, 12]
-# reconstruct(a)
+    return reconstructed_data
 
-#
-
-errorTol = 8
-answer = curveFitting(xcol, ycol, errorTol, 50)
-print('max',findTotal(xcol, ycol, answer[0], answer[1]))
-# print(findTotal(xcol, ycol, answer[0], answer[1]))
-APCA = APCA(xcol, ycol, answer[0])
-# print(len(answer[1]))
-
-plt.plot(xcol, ycol, label="Tech Company Stock Price")
-plt.plot(xcol, APCA[1], label="APCA Reconstruction")
-# plt.plot(xcol, APCA[1], label="APCA Reconstruction")
-
-plt.legend()
-plt.show()
-
-
-
-# errorTol = 0.5
-# answer = curveFitting(x, y1, errorTol, 60)
-# print('max', findTotal(x[:500], y1[:500], answer[0][:500], answer[1][:500]))
-# APCA = APCA(x, y1, answer[0])
-# plt.plot(x[:500], y1[:500], label="Original EKG")
-# plt.plot(x[:500], APCA[1][:500],label="APCA Reconstructed EKG")
-# plt.legend()
-# plt.show()
-
-y1 = np.array(y1)
-
-#PAA
-#
-# y1paa = y1[:500]
-#
-# W_L = 5
-# transformer = PiecewiseAggregateApproximation(window_size=W_L)
-# # paa = transformer.transform(ycol.reshape(1, -1))
-# paa = transformer.transform(y1paa.reshape(1, -1))
-# paaX = []
-# paa_graph = []
-# paa_graphX = []
-# for i in range(len(paa[0])):
-#     if i == 0:
-#         paa_graph += [paa[0][i]]
-#         paa_graph += [paa[0][i + 1]]
-#         curX = i * W_L
-#         paa_graphX += [curX]
-#         paa_graphX += [curX + W_L]
-#     elif i != len(paa[0])-1:
-#         paa_graph += [paa[0][i+1]]
-#         paa_graph += [paa[0][i+1]]
-#         curX = i*W_L
-#         paa_graphX += [curX]
-#         paa_graphX += [curX + W_L]
-#     paaX += [i*W_L]
-#
-# maxdif = findMax(xcol, ycol, paa_graphX, paa_graph)
-print('max', findTotal(x[:500], y1paa, paaX, paa[0]))
-# plt.plot(x[:500], y1paa, label="Stock Market Price")
-# plt.plot(paa_graphX, paa_graph,label="PAA Reconstruction")
-# plt.legend()
-# plt.show()
+def get_windowed_segments(data, window):
+    """
+    Populate a list of all segments seen in the input data.  Apply a window to
+    each segment so that they can be added together even if slightly
+    overlapping, enabling later reconstruction.
+    """
+    step = 2
+    windowed_segments = []
+    segments = sliding_chunker(
+        data,
+        window_len=len(window),
+        slide_len=step
+    )
+    for segment in segments:
+        segment *= window
+        windowed_segments.append(segment)
+    return windowed_segments
 
 
+def getAPCA(x, y, errorTol, numseg):
+    ans = curveFitting(x, y, errorTol, numseg)
+    a = APCA(x, y, ans[0])
+    return a[1]
 
-#pyts
-#tslearn
+def getEKGData():
+    x = []
+    y1 = []
+    y2 = []
+    micro = []
+
+    with open('ECGTime.csv', newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        for row in reader:
+            x += [int(row[0])]
+            y1 += [float(row[1])]
+            y2 += [float(row[2])]
+            micro += [[int(row[0]), float(row[1])]]
+    return np.array(x[:506]), np.array(y1[:506])
+
+
+def getPAA(y, window_length):
+    transformer = PiecewiseAggregateApproximation(window_size=window_length)
+    paa = transformer.transform(y.reshape(1, -1))
+    paaX = []
+    linpaa = []
+    paa_graph = []
+    paa_graphX = []
+    for i in range(len(paa[0])):
+        if i == 0:
+            paa_graph += [paa[0][i]]
+            paa_graph += [paa[0][i + 1]]
+            curX = i * window_length
+            paa_graphX += [curX]
+            paa_graphX += [curX + window_length]
+        elif i != len(paa[0]) - 1:
+            paa_graph += [paa[0][i + 1]]
+            paa_graph += [paa[0][i + 1]]
+            curX = i * window_length
+            paa_graphX += [curX]
+            paa_graphX += [curX + window_length]
+        paaX += [i * window_length]
+    for i in range(len(paa[0])):
+        for j in range(5):
+            linpaa += [paa[0][i]]
+    return paa_graphX, paa_graph, linpaa[:len(y)]
+
+
+def getKMeans(y, window_length, clusters):
+    window_rads = np.linspace(0, np.pi, window_length)
+    window = np.sin(window_rads) ** 2
+    windowed_segments = get_windowed_segments(y, window)
+    clusterer = KMeans(n_clusters=clusters)
+    clusterer.fit(windowed_segments)
+    reconstruction = reconstruct(y, window, clusterer)
+    return reconstruction
+
+def lnorm(real, aprox):
+    dif = real-aprox
+    l1 = np.linalg.norm(dif, 1)
+    l2 = np.linalg.norm(dif, 2)
+    linf = np.linalg.norm(dif, np.inf)
+    return l1,l2,linf
 
