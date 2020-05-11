@@ -11,6 +11,9 @@ import pywt
 import math
 
 def getStockData():
+    """Get data from a local csv and remove the columns that are not needed. Returns
+    2 arrays containing information"""
+
     df = pd.read_csv("https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv")
 
     del df['AAPL.Open']
@@ -31,6 +34,10 @@ def getStockData():
     return xcol, ycol
 
 def find_nearest(array, value, array2):
+    """Used in the creation of APCA, this function returns the next valid
+    index when trying to match up a shortened APCA representation into a valid
+    array for graphing, (IE APCA needs to have the same number of samples when graphed as the
+    original data"""
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     if idx == 0:
@@ -43,6 +50,8 @@ def find_nearest(array, value, array2):
         return array[idx-1], array[idx], array2[idx-1], array2[idx]
 
 def findMax(x, y, sampleX, sampleY):
+    """This function finds the point on a representation that is the farthest away from its counterpart on the
+    real TS"""
     maxdev = []
     curMax = [0, 0]
     sx1, sx2 = 0, 0
@@ -68,6 +77,8 @@ def findMax(x, y, sampleX, sampleY):
     return curMax
 
 def findTotal(x, y, sampleX, sampleY):
+    """ This function was used before we used L-norms to find the total euclidean distance difference
+    between the sample and the real TS"""
     maxdev = []
     tot = 0
     curMax = [0, 0]
@@ -96,6 +107,8 @@ def findTotal(x, y, sampleX, sampleY):
     return tot
 
 def APCA(x, y, sampleX):
+    """ This function returns the APCA representation and the array that can be graphed to view the
+    representation given a series of segments and the real data"""
     APCArep = []
     APCAgraphY = []
     curInd = 1
@@ -123,6 +136,8 @@ def APCA(x, y, sampleX):
 
 
 def curveFitting(x, y, errorTol, numseg):
+    """This function is the main function for APCA as it finds the
+    break points and where to put the next segment in regards to APCA"""
     length = len(x)
     sampleX = np.linspace(x[0], x[len(x)-1], int(numseg))
     sampleY = np.interp(sampleX, x, y)
@@ -182,11 +197,15 @@ def curveFitting(x, y, errorTol, numseg):
         return sampleX, sampleY
 
 def prepend(a1, a2):
+    """Simple function to prepend an array to another array"""
     a2.extend(a1)
     a1 = a2
     return a1
 
 def threshold(array, M):
+    """This is for wavelet creation of APCA, it was not used in the end.
+    This function returns the highest absolute value numbers in the array given and fills the other indices with
+    zeros, depending on how high M is"""
     curMinMax = 0
     maxes = []
     for i in range(len(array)):
@@ -213,6 +232,7 @@ def threshold(array, M):
 
 
 def reconstruct(coeffs):
+    """Another function for Wavelet creation, not used in final results"""
     reconst = []
     reconst.append(coeffs[0]+coeffs[1])
     reconst.append(coeffs[0]-coeffs[1])
@@ -229,6 +249,7 @@ def reconstruct(coeffs):
 
 
 def DWT(array, M):
+    """ Another wavelet function not used in final."""
     length = len(array)
     topRes = math.log(length, 2)-1
     if not math.log(length, 2).is_integer():
@@ -341,11 +362,13 @@ def get_windowed_segments(data, window):
 
 
 def getAPCA(x, y, errorTol, numseg):
+    """Just a function to call the appropriate functions for an APCA representation"""
     ans = curveFitting(x, y, errorTol, numseg)
     a = APCA(x, y, ans[0])
     return a[1]
 
 def getEKGData():
+    """Getter function for the EKG data"""
     x = []
     y1 = []
     y2 = []
@@ -362,6 +385,7 @@ def getEKGData():
 
 
 def getPAA(y, window_length):
+    """Getter function for the PAA representation"""
     transformer = PiecewiseAggregateApproximation(window_size=window_length)
     paa = transformer.transform(y.reshape(1, -1))
     paaX = []
@@ -389,6 +413,7 @@ def getPAA(y, window_length):
 
 
 def getKMeans(y, window_length, clusters):
+    """Calls the necesary functions for KMeans given a window length and number of clusters"""
     window_rads = np.linspace(0, np.pi, window_length)
     window = np.sin(window_rads) ** 2
     windowed_segments = get_windowed_segments(y, window)
@@ -398,6 +423,7 @@ def getKMeans(y, window_length, clusters):
     return reconstruction
 
 def lnorm(real, aprox):
+    """ Calls lnorm for multiple p values"""
     dif = real-aprox
     l1 = np.linalg.norm(dif, 1)
     l2 = np.linalg.norm(dif, 2)
@@ -405,7 +431,8 @@ def lnorm(real, aprox):
     return l1,l2,linf
 
 def findBestAPCA(data):
-    error = [0.2, 0.4, 0.5, 0.75, 1, 1.5, 2]
+    """Function testing different values for paramters in APCA"""
+    error = 0.3
     length = [30, 45, 50, 55, 60, 70, 80, 90]
     max1 = 1000000000
     max1ind = 0
@@ -434,6 +461,7 @@ def findBestAPCA(data):
     return max2ind
 
 def findBestKmeans(data):
+    """Function testing different Parameters for K-means"""
     # window = 32
     # clusters = 150
     # stockKMeans = getKMeans(stockData[1], window, clusters)
