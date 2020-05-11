@@ -129,13 +129,13 @@ def curveFitting(x, y, errorTol, numseg):
     maxDev = findMax(x,y, sampleX, sampleY)
 
     if maxDev[1]+1 == length:
-        print('call off too dangerous!!')
+        # print('call off too dangerous!!')
         return sampleX, sampleY
     if maxDev[1] == 0:
-        print('call off too dangerous!!')
+        # print('call off too dangerous!!')
         return sampleX, sampleY
     if len(sampleX) < 2:
-        print('call off too dangerous!!')
+        # print('call off too dangerous!!')
         return sampleX, sampleY
 
     if maxDev[0] > errorTol:
@@ -256,9 +256,9 @@ def DWT(array, M):
         CurDetails = []
     Coeffs = prepend(details, newArray)
     keep = threshold(Coeffs, M)
-    print('keep', keep)
+    # print('keep', keep)
     answer = reconstruct(keep)
-    print('final', answer)
+    # print('final', answer)
     return answer
 
 def sliding_chunker(data, window_len, slide_len):
@@ -383,7 +383,7 @@ def getPAA(y, window_length):
             paa_graphX += [curX + window_length]
         paaX += [i * window_length]
     for i in range(len(paa[0])):
-        for j in range(5):
+        for j in range(window_length):
             linpaa += [paa[0][i]]
     return paa_graphX, paa_graph, linpaa[:len(y)]
 
@@ -404,3 +404,63 @@ def lnorm(real, aprox):
     linf = np.linalg.norm(dif, np.inf)
     return l1,l2,linf
 
+def findBestAPCA(data):
+    error = [0.2, 0.4, 0.5, 0.75, 1, 1.5, 2]
+    length = [30, 45, 50, 55, 60, 70, 80, 90]
+    max1 = 1000000000
+    max1ind = 0
+    max2 = 1000000000
+    max2ind = 0
+    max3 = 1000000000
+    max3ind = 0
+    for i in range(len(error)):
+        for j in range(len(length)):
+            e = error[i]
+            l = length[j]
+            apcaData = getAPCA(data[0], data[1], e, l)
+            norms = lnorm(data[1][15:480], apcaData[15:480])
+            if max1 > norms[0]:
+                max1 = norms[0]
+                max1ind = [e, l]
+            if max2 > norms[1]:
+                max2 = norms[1]
+                max2ind = [e, l]
+            if max3 > norms[2]:
+                max3 = norms[2]
+                max3ind = [e, l]
+    print('l1', max1, max1ind)
+    print('l2', max2, max2ind)
+    print('linfinity', max3, max3ind)
+    return max2ind
+
+def findBestKmeans(data):
+    # window = 32
+    # clusters = 150
+    # stockKMeans = getKMeans(stockData[1], window, clusters)
+    windows = [32,16,48,10,6,15]
+    clusters = [150,100,175,50]
+    max1 = 1000000000
+    max1ind = 0
+    max2 = 1000000000
+    max2ind = 0
+    max3 = 1000000000
+    max3ind = 0
+    for i in range(len(windows)):
+        for j in range(len(clusters)):
+            w = windows[i]
+            c = clusters[j]
+            stockKMeans = getKMeans(data[1], w, c)
+            norms = lnorm(data[1][15:480], stockKMeans[15:480])
+            if max1 > norms[0]:
+                max1 = norms[0]
+                max1ind = [w, c]
+            if max2 > norms[1]:
+                max2 = norms[1]
+                max2ind = [w, c]
+            if max3 > norms[2]:
+                max3 = norms[2]
+                max3ind = [w, c]
+    print('l1', max1, max1ind)
+    print('l2', max2, max2ind)
+    print('linfinity', max3, max3ind)
+    return max2ind
