@@ -1,2 +1,2 @@
 # DBMS2270
-Time Series Representation - APCA 
+see Extended Abstract
